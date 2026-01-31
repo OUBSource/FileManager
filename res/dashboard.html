@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* --- Стили сетки и виджетов --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 25px;
+            padding: 40px;
+            z-index: 10;
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .widget {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 18px;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 140px;
+        }
+        .widget:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .clock-container {
+            text-align: center;
+            margin-top: 60px;
+            margin-bottom: 20px;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .clock { font-size: 3.5em; font-weight: 300; letter-spacing: 2px; }
+        .welcome-text { font-size: 1.2em; opacity: 0.8; }
+
+        /* --- Иконки (SVG) --- */
+        .app-icon-svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 0 8px rgba(0, 150, 255, 0.6));
+        }
+        .disk-icon-svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 10px;
+            fill: #e0e0e0;
+        }
+        .disk-bar-bg {
+            width: 100%;
+            background: rgba(0,0,0,0.4);
+            height: 6px;
+            margin-top: 8px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .disk-bar-fill {
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        /* --- Файловый менеджер (Модальное окно) --- */
+        #fileManager {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 85%; height: 85%;
+            background: rgba(20, 25, 35, 0.95);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: white;
+            z-index: 100;
+            flex-direction: column;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            animation: popIn 0.3s ease-out;
+        }
+        
+        @keyframes popIn {
+            from { transform: translate(-50%, -45%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+
+        .fm-header {
+            padding: 15px 20px;
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .fm-path { font-family: monospace; color: #a0cfff; font-size: 1.1em; }
+        .close-btn { 
+            cursor: pointer; 
+            width: 30px; height: 30px; 
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 59, 48, 0.8);
+            transition: 0.2s;
+        }
+        .close-btn:hover { background: rgb(255, 59, 48); }
+
+        .toolbar {
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.2);
+            display: flex;
+            gap: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .tool-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+        }
+        .tool-btn:hover { background: rgba(255,255,255,0.2); }
+        .tool-btn svg { width: 18px; height: 18px; fill: white; }
+
+        .fm-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 15px;
+            align-content: start;
+        }
+        
+        /* Иконки внутри менеджера */
+        .file-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .file-item:hover { background: rgba(255,255,255,0.1); }
+        
+        .file-icon-svg {
+            width: 56px;
+            height: 56px;
+            margin-bottom: 8px;
+        }
+        .folder-color { fill: #007bff; /* Яркий синий цвет папок */ }
+        .file-color { fill: #b0b0b0; }
+        
+        .file-name {
+            font-size: 13px;
+            text-align: center;
+            word-break: break-all;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            color: #eee;
+        }
+        
+        /* Скроллбар */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+        .top-bar {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            padding: 15px 30px;
+            display: flex; justify-content: flex-end;
+            box-sizing: border-box;
+            z-index: 50;
+        }
+        .user-pill {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            font-size: 14px;
+        }
+        .logout-link { color: #ff6b6b; text-decoration: none; font-weight: bold; margin-left: 10px;}
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    <canvas id="threadCanvas" style="position:fixed; top:0; left:0; pointer-events:none;"></canvas>
+
+    <div class="top-bar">
+        <div class="user-pill">
+            <!-- Иконка юзера -->
+            <svg style="width:16px;height:16px;fill:white;" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            {{ user.username }}
+            <a href="/logout" class="logout-link">Выйти</a>
+        </div>
+    </div>
+
+    <div class="center-container" style="display: block; height: auto; padding-bottom: 50px;">
+        <div class="clock-container">
+            <div id="clock" class="clock">00:00</div>
+            <div class="welcome-text">{{ user.username }}'s Workspace</div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Ярлык Файлового менеджера -->
+            <div class="widget" onclick="openFileManager()">
+                <!-- SVG Icon: Blue Folder/Explorer -->
+                <svg class="app-icon-svg" viewBox="0 0 24 24">
+                    <path fill="#007bff" d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                    <path fill="#66b2ff" d="M20 8v10H4V8h16m0-2h-8l-2-2H4c-1.1 0-2 .9-2 2v2h18V8c0-1.1-.9-2-2-2z" opacity="0.3"/>
+                </svg>
+                <div>Файлы</div>
+            </div>
+
+            <!-- Виджеты Дисков -->
+            {% for disk in disks %}
+            <div class="widget">
+                <!-- SVG Icon: Hard Drive -->
+                <svg class="disk-icon-svg" viewBox="0 0 24 24">
+                    <path d="M6 2h12c1.1 0 2 .9 2 2v2H4V4c0-1.1.9-2 2-2zm12 6H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zM12 14c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+                <div style="font-size: 14px; font-weight: bold;">{{ disk.device }}</div>
+                <div style="font-size: 11px; margin-top: 2px; opacity: 0.7;">{{ disk.total }}</div>
+                <div class="disk-bar-bg">
+                    <div class="disk-bar-fill" style="width: {{ disk.percent }}%;"></div>
+                </div>
+                <div style="font-size: 10px; margin-top: 5px; opacity: 0.6;">{{ disk.percent }}%</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- File Manager Window -->
+    <div id="fileManager">
+        <div class="fm-header">
+            <span id="currentPath" class="fm-path">/</span>
+            <div class="close-btn" onclick="closeFileManager()">
+                <svg style="width:16px;height:16px;fill:white;" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </div>
+        </div>
+        <div class="toolbar">
+            <button class="tool-btn" onclick="navigateUp()">
+                <svg viewBox="0 0 24 24"><path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg> 
+                Назад
+            </button>
+            <button class="tool-btn" onclick="createFolder()">
+                <svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/><path d="M0 0h24v24H0z" fill="none"/><path style="fill:rgba(255,255,255,0.8)" d="M19 13h-3v3h-2v-3h-3v-2h3V8h2v3h3v2z"/></svg>
+                Новая папка
+            </button>
+        </div>
+        <div class="fm-body" id="fileList">
+            <!-- Files injected here via JS -->
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/canvas.js') }}"></script>
+    <script>
+        // Часы
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }, 1000);
+
+        // --- Иконки SVG (строки) ---
+        
+        // Синяя папка (Solid Blue)
+        const iconFolder = `
+            <svg class="file-icon-svg folder-color" viewBox="0 0 24 24">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>`;
+
+        // Серый файл
+        const iconFile = `
+            <svg class="file-icon-svg file-color" viewBox="0 0 24 24">
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+            </svg>`;
+
+        let currentPath = '';
+
+        function openFileManager() {
+            const fm = document.getElementById('fileManager');
+            fm.style.display = 'flex';
+            loadFiles('');
+        }
+
+        function closeFileManager() {
+            document.getElementById('fileManager').style.display = 'none';
+        }
+
+        async function loadFiles(path) {
+            const response = await fetch('/api/files', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'list', path: path})
+            });
+            const data = await response.json();
+            
+            if (data.error) { alert(data.error); return; }
+
+            currentPath = data.current_path;
+            document.getElementById('currentPath').innerText = currentPath;
+            
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+
+            // Если папка пуста
+            if (data.items.length === 0) {
+                list.innerHTML = '<div style="grid-column: 1/-1; text-align:center; opacity:0.5; margin-top:20px;">Папка пуста</div>';
+                return;
+            }
+
+            data.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                
+                // Вставляем соответствующую SVG иконку
+                const iconSvg = item.is_dir ? iconFolder : iconFile;
+                
+                div.innerHTML = `
+                    ${iconSvg}
+                    <div class="file-name" title="${item.name}">${item.name}</div>
+                `;
+                
+                // Логика кликов
+                if (item.is_dir) {
+                    div.onclick = () => loadFiles(item.path);
+                }
+
+                div.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    if(confirm(`Удалить ${item.name}?`)) {
+                        fileAction('delete', item.path);
+                    }
+                };
+
+                list.appendChild(div);
+            });
+        }
+
+        async function fileAction(action, path, extra={}) {
+            const body = {action, path, ...extra};
+            await fetch('/api/files', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            loadFiles(currentPath);
+        }
+
+        function navigateUp() {
+            const separator = currentPath.includes('\\') ? '\\' : '/';
+            // Если мы в корне (например C:\ или /), то не поднимаемся выше
+            if (currentPath === '/' || (currentPath.length === 3 && currentPath.endsWith(':\\'))) return;
+
+            const parts = currentPath.split(separator);
+            // Удаляем пустые строки, если путь заканчивается слэшем
+            while(parts.length > 0 && parts[parts.length-1] === '') parts.pop();
+            
+            parts.pop();
+            let newPath = parts.join(separator);
+            
+            if (newPath === '' && separator === '/') newPath = '/';
+            if (newPath.length === 2 && separator === '\\') newPath += '\\'; // Fix for C: -> C:\
+            
+            loadFiles(newPath || separator);
+        }
+        
+        function createFolder() {
+            const name = prompt("Введите имя новой папки:");
+            if (name) fileAction('create_folder', currentPath, {name});
+        }
+    </script>
+</body>
+</html>

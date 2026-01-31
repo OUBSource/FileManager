@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Добро пожаловать</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="background"></div>
+    <canvas id="threadCanvas"></canvas>
+
+    <div class="center-container">
+        <div class="glass-panel">
+            {% if mode == 'register' %}
+                <h2>Добро пожаловать!</h2>
+                <p>Регистрация администратора</p>
+            {% else %}
+                <h2>Вход в систему</h2>
+            {% endif %}
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="flash-msg">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+
+            <form action="/auth" method="POST">
+                <input type="hidden" name="mode" value="{{ mode }}">
+                <input type="text" name="username" placeholder="Введите имя пользователя" required>
+                <input type="password" name="password" placeholder="Введите пароль" required>
+                <button type="submit">
+                    {% if mode == 'register' %} Зарегистрироваться {% else %} Войти {% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/canvas.js') }}"></script>
+</body>
+</html>
